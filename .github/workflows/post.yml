@@ -1,0 +1,26 @@
+name: Farcaster Auto Post
+
+on:
+  schedule:
+    - cron: '0 6,12,18 * * *'
+  workflow_dispatch:
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Vercel API
+        run: |
+          response=$(curl -s -w "\n%{http_code}" "${{ secrets.VERCEL_URL }}/api/post?manual=true")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ $http_code -eq 200 ]; then
+            echo "✅ Post başarıyla gönderildi!"
+          else
+            echo "❌ Hata oluştu!"
+            exit 1
+          fi
