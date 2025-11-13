@@ -25,13 +25,25 @@ const cryptoTopics = [
 ];
 
 export default async function handler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   if (req.headers['user-agent']?.includes('vercel-cron') || req.query.manual === 'true') {
     try {
+      console.log("Starting post process...");
+      
+      // OpenAI ile içerik üret
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY
       });
       
       const randomTopic = cryptoTopics[Math.floor(Math.random() * cryptoTopics.length)];
+      console.log("Selected topic:", randomTopic);
       
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -61,12 +73,22 @@ Ton: Profesyonel ama samimi, heyecanlı ama abartısız`
       });
       
       const generatedContent = completion.choices[0].message.content.trim();
+      console.log("Generated content:", generatedContent);
       
-      const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY);
-      const cast = await neynar.publishCast(
-        process.env.SIGNER_UUID,
-        generatedContent
-      );
+      // Neynar client oluştur
+      const neynar = new NeynarAPIClient({
+        apiKey: process.env.NEYNAR_API_KEY
+      });
+      
+      console.log("Publishing cast...");
+      
+      // Cast yayınla
+      const cast = await neynar.publishCast({
+        signerUuid: process.env.SIGNER_UUID,
+        text: generatedContent
+      });
+      
+      console.log("Cast published successfully:", cast.hash);
       
       return res.status(200).json({ 
         success: true, 
@@ -81,7 +103,8 @@ Ton: Profesyonel ama samimi, heyecanlı ama abartısız`
       console.error("Hata detayı:", error);
       return res.status(500).json({ 
         success: false, 
-        error: error.message 
+        error: error.message,
+        details: error.toString()
       });
     }
   }
