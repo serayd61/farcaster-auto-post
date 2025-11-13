@@ -1,0 +1,9 @@
+{
+  "name": "farcaster-auto-post",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@neynar/nodejs-sdk": "^1.24.0",
+    "openai": "^4.20.0"
+  }
+}
