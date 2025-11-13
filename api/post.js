@@ -1,17 +1,26 @@
-import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import OpenAI from "openai";
 
 const cryptoTopics = [
-  "Base blockchain'in son TVL istatistikleri ve büyümesi",
-  "Layer 2 çözümlerinin Ethereum ekosistemindeki önemi",
-  "Base üzerindeki popüler DeFi protokolleri",
-  "Coinbase ve Base entegrasyonunun avantajları",
-  "Base'de NFT projeleri geliştirmenin kolaylıkları",
-  "Smart contract deployment maliyetleri Base vs Ethereum",
-  "Base ekosistemindeki yeni projeler ve dApp'ler",
-  "Cross-chain bridge'ler ve Base ağı",
-  "Base'de transaction hızı ve güvenlik",
-  "Developer'lar için Base blockchain avantajları"
+  "Base blockchain's latest TVL statistics and growth",
+  "The importance of Layer 2 solutions in the Ethereum ecosystem",
+  "Popular DeFi protocols on Base",
+  "Advantages of Coinbase and Base integration",
+  "Ease of developing NFT projects on Base",
+  "Smart contract deployment costs: Base vs Ethereum",
+  "New projects and dApps in the Base ecosystem",
+  "Cross-chain bridges and Base network",
+  "Transaction speed and security on Base",
+  "Base blockchain advantages for developers",
+  "DeFi yield farming opportunities on Base",
+  "Optimism technology and Base infrastructure",
+  "Gas fee optimization on Base blockchain",
+  "Coinbase Wallet and Base user experience",
+  "Liquidity mining in the Base ecosystem",
+  "The future of Layer 2 scaling and Base",
+  "Token launch strategies on Base",
+  "Base blockchain developer community",
+  "Lending protocols on Base",
+  "Base's relationship with Ethereum mainnet"
 ];
 
 export default async function handler(req, res) {
@@ -21,25 +30,33 @@ export default async function handler(req, res) {
     try {
       console.log("=== Starting post process ===");
       
-      // OpenAI client
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY
       });
       
       const randomTopic = cryptoTopics[Math.floor(Math.random() * cryptoTopics.length)];
-      console.log("Topic:", randomTopic);
+      console.log("Selected topic:", randomTopic);
       
-      // İçerik üret
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: "Sen Base blockchain uzmanısın. 280 karakter altında, ilgi çekici, Türkçe-İngilizce karışık kripto postları yazıyorsun. 1-2 emoji kullan."
+            content: `You are a Base blockchain and crypto expert content creator. 
+
+Your task:
+- Write engaging, informative posts that could go viral
+- Keep it under 280 characters (Farcaster limit)
+- Use 1-2 emojis, but don't overdo it
+- Technical but understandable language
+- No hashtags, write naturally
+- Approach each topic from a different angle
+
+Tone: Professional yet friendly, excited but not exaggerated`
           },
           {
             role: "user",
-            content: `Bu konu hakkında kısa bir post yaz: ${randomTopic}`
+            content: `Write an engaging post about: ${randomTopic}`
           }
         ],
         max_tokens: 100,
@@ -49,34 +66,42 @@ export default async function handler(req, res) {
       const generatedContent = completion.choices[0].message.content.trim();
       console.log("Content generated:", generatedContent);
       
-      // Neynar client - DÜZELTİLMİŞ VERSİYON
-      const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY);
+      const neynarResponse = await fetch('https://api.neynar.com/v2/farcaster/cast', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api_key': process.env.NEYNAR_API_KEY,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          signer_uuid: process.env.SIGNER_UUID,
+          text: generatedContent
+        })
+      });
       
-      console.log("Publishing to Farcaster...");
+      if (!neynarResponse.ok) {
+        const errorText = await neynarResponse.text();
+        console.error("Neynar API error:", errorText);
+        throw new Error(`Neynar API error: ${neynarResponse.status} - ${errorText}`);
+      }
       
-      // Cast yayınla - DÜZELTİLMİŞ PARAMETRE YAPISI
-      const result = await neynar.publishCast(
-        process.env.SIGNER_UUID,
-        generatedContent
-      );
-      
-      console.log("Success! Cast hash:", result.hash);
+      const castResult = await neynarResponse.json();
+      console.log("Cast published successfully:", castResult);
       
       return res.status(200).json({ 
         success: true, 
-        message: "Post başarıyla gönderildi!",
+        message: "Post successfully published!",
         content: generatedContent,
-        castHash: result.hash,
-        castUrl: `https://warpcast.com/~/conversations/${result.hash}`
+        castHash: castResult.cast?.hash,
+        castUrl: `https://warpcast.com/${castResult.cast?.author?.username}/${castResult.cast?.hash}`
       });
       
     } catch (error) {
       console.error("ERROR:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
       
       return res.status(500).json({ 
         success: false, 
-        error: error.message || "Unknown error",
+        error: error.message,
         details: error.toString()
       });
     }
