@@ -23,17 +23,15 @@ const cryptoTopics = [
   "Ethereum roadmap and future upgrades"
 ];
 
-async function uploadToImgBB(imageUrl) {
-  // Download image from OpenAI
+async function uploadToImgBB(imageUrl, apiKey) {
   const imageResponse = await fetch(imageUrl);
   const imageBuffer = await imageResponse.arrayBuffer();
   const imageBase64 = Buffer.from(imageBuffer).toString('base64');
   
-  // Upload to imgbb (free, no auth needed for basic use)
   const formData = new URLSearchParams();
   formData.append('image', imageBase64);
   
-  const imgbbResponse = await fetch('https://api.imgbb.com/1/upload?key=d48372e83da8f08aada0b9d22242b0d5', {
+  const imgbbResponse = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
     method: 'POST',
     body: formData
   });
@@ -58,7 +56,6 @@ export default async function handler(req, res) {
       
       const randomTopic = cryptoTopics[Math.floor(Math.random() * cryptoTopics.length)];
       
-      // Generate news-style content
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -73,9 +70,7 @@ Style:
 - Use 1 relevant emoji
 - Include numbers/metrics when possible
 - No hashtags, no tags
-- Sound like breaking news
-
-Example: "🚀 Base hits new ATH with 2.5M daily transactions, marking 40% growth this week. DeFi TVL surpasses $1.2B as developers migrate from mainnet."`
+- Sound like breaking news`
           },
           {
             role: "user",
@@ -89,35 +84,22 @@ Example: "🚀 Base hits new ATH with 2.5M daily transactions, marking 40% growt
       const newsContent = completion.choices[0].message.content.trim();
       console.log("News generated:", newsContent);
       
-      // Generate news-style image
       console.log("Generating image...");
       const imageResponse = await openai.images.generate({
         model: "dall-e-3",
-        prompt: `Create a professional cryptocurrency news graphic about: ${randomTopic}. 
-
-Style requirements:
-- Modern financial news aesthetic
-- Clean, minimal design
-- Blue color scheme (#0052FF for Base, similar blues for Ethereum/Optimism)
-- Include abstract blockchain network visualization
-- Professional charts or graphs if relevant
-- No text overlay
-- High contrast, bold visuals
-- News broadcast quality`,
+        prompt: `Create a professional cryptocurrency news graphic about: ${randomTopic}. Modern financial news aesthetic, clean minimal design, blue color scheme (#0052FF), blockchain network visualization, no text overlay.`,
         size: "1024x1024",
         quality: "standard",
         n: 1,
       });
       
       const dalleImageUrl = imageResponse.data[0].url;
-      console.log("DALL-E image generated:", dalleImageUrl);
+      console.log("DALL-E image generated");
       
-      // Upload to ImgBB for short URL
       console.log("Uploading to ImgBB...");
-      const shortImageUrl = await uploadToImgBB(dalleImageUrl);
-      console.log("ImgBB URL:", shortImageUrl);
+      const shortImageUrl = await uploadToImgBB(dalleImageUrl, process.env.IMGBB_API_KEY);
+      console.log("Upload complete");
       
-      // Post to Farcaster
       console.log("Publishing to Farcaster...");
       const castResponse = await fetch('https://api.neynar.com/v2/farcaster/cast', {
         method: 'POST',
@@ -153,8 +135,7 @@ Style requirements:
       console.error("ERROR:", error);
       return res.status(500).json({ 
         success: false, 
-        error: error.message,
-        details: error.toString()
+        error: error.message
       });
     }
   }
