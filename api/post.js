@@ -29,6 +29,11 @@ export default async function handler(req, res) {
   if (req.headers['user-agent']?.includes('vercel-cron') || req.query.manual === 'true') {
     try {
       console.log("=== Starting post process ===");
+      console.log("Environment check:", {
+        hasNeynarKey: !!process.env.NEYNAR_API_KEY,
+        hasSignerUuid: !!process.env.SIGNER_UUID,
+        hasOpenAIKey: !!process.env.OPENAI_API_KEY
+      });
       
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY
@@ -66,6 +71,17 @@ Tone: Professional yet friendly, excited but not exaggerated`
       const generatedContent = completion.choices[0].message.content.trim();
       console.log("Content generated:", generatedContent);
       
+      console.log("Attempting to post to Neynar...");
+      console.log("API Key (first 10 chars):", process.env.NEYNAR_API_KEY?.substring(0, 10));
+      console.log("Signer UUID (first 8 chars):", process.env.SIGNER_UUID?.substring(0, 8));
+      
+      const requestBody = {
+        signer_uuid: process.env.SIGNER_UUID,
+        text: generatedContent
+      };
+      
+      console.log("Request body:", JSON.stringify(requestBody, null, 2));
+      
       const neynarResponse = await fetch('https://api.neynar.com/v2/farcaster/cast', {
         method: 'POST',
         headers: {
@@ -73,19 +89,20 @@ Tone: Professional yet friendly, excited but not exaggerated`
           'api_key': process.env.NEYNAR_API_KEY,
           'content-type': 'application/json'
         },
-        body: JSON.stringify({
-          signer_uuid: process.env.SIGNER_UUID,
-          text: generatedContent
-        })
+        body: JSON.stringify(requestBody)
       });
       
+      console.log("Neynar response status:", neynarResponse.status);
+      console.log("Neynar response headers:", Object.fromEntries(neynarResponse.headers.entries()));
+      
+      const responseText = await neynarResponse.text();
+      console.log("Neynar response body:", responseText);
+      
       if (!neynarResponse.ok) {
-        const errorText = await neynarResponse.text();
-        console.error("Neynar API error:", errorText);
-        throw new Error(`Neynar API error: ${neynarResponse.status} - ${errorText}`);
+        throw new Error(`Neynar API error: ${neynarResponse.status} - ${responseText}`);
       }
       
-      const castResult = await neynarResponse.json();
+      const castResult = JSON.parse(responseText);
       console.log("Cast published successfully:", castResult);
       
       return res.status(200).json({ 
@@ -97,11 +114,15 @@ Tone: Professional yet friendly, excited but not exaggerated`
       });
       
     } catch (error) {
-      console.error("ERROR:", error);
+      console.error("=== ERROR DETAILS ===");
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
       
       return res.status(500).json({ 
         success: false, 
         error: error.message,
+        errorName: error.name,
         details: error.toString()
       });
     }
