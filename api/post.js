@@ -23,31 +23,28 @@ const cryptoTopics = [
   "Ethereum roadmap and future upgrades"
 ];
 
-async function uploadToImgur(imageUrl) {
+async function uploadToImgBB(imageUrl) {
   // Download image from OpenAI
   const imageResponse = await fetch(imageUrl);
   const imageBuffer = await imageResponse.arrayBuffer();
   const imageBase64 = Buffer.from(imageBuffer).toString('base64');
   
-  // Upload to Imgur
-  const imgurResponse = await fetch('https://api.imgur.com/3/image', {
+  // Upload to imgbb (free, no auth needed for basic use)
+  const formData = new URLSearchParams();
+  formData.append('image', imageBase64);
+  
+  const imgbbResponse = await fetch('https://api.imgbb.com/1/upload?key=d48372e83da8f08aada0b9d22242b0d5', {
     method: 'POST',
-    headers: {
-      'Authorization': 'Client-ID 534b3e9cc2d87a2',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      image: imageBase64,
-      type: 'base64'
-    })
+    body: formData
   });
   
-  if (!imgurResponse.ok) {
-    throw new Error(`Imgur upload failed: ${imgurResponse.status}`);
+  if (!imgbbResponse.ok) {
+    const errorText = await imgbbResponse.text();
+    throw new Error(`ImgBB upload failed: ${imgbbResponse.status} - ${errorText}`);
   }
   
-  const imgurResult = await imgurResponse.json();
-  return imgurResult.data.link;
+  const imgbbResult = await imgbbResponse.json();
+  return imgbbResult.data.url;
 }
 
 export default async function handler(req, res) {
@@ -115,10 +112,10 @@ Style requirements:
       const dalleImageUrl = imageResponse.data[0].url;
       console.log("DALL-E image generated:", dalleImageUrl);
       
-      // Upload to Imgur for short URL
-      console.log("Uploading to Imgur...");
-      const shortImageUrl = await uploadToImgur(dalleImageUrl);
-      console.log("Imgur URL:", shortImageUrl);
+      // Upload to ImgBB for short URL
+      console.log("Uploading to ImgBB...");
+      const shortImageUrl = await uploadToImgBB(dalleImageUrl);
+      console.log("ImgBB URL:", shortImageUrl);
       
       // Post to Farcaster
       console.log("Publishing to Farcaster...");
