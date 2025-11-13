@@ -23,15 +23,11 @@ const cryptoTopics = [
   "Base's relationship with Ethereum mainnet"
 ];
 
-// Base ecosystem active users to tag
 const baseInfluencers = [
-  "@jessepollak",      // Jesse Pollak - Base lead
-  "@hosseeb",          // Haseeb Qureshi
-  "@punk6529",         // 6529
-  "@coinbase",         // Coinbase official
-  "@base",             // Base official
-  "@optimismFND",      // Optimism Foundation
-  "@defi",             // DeFi community
+  "@jessepollak",
+  "@hosseeb",
+  "@coinbase",
+  "@base",
 ];
 
 function getRandomInfluencers(count = 2) {
@@ -50,13 +46,13 @@ export default async function handler(req, res) {
       
       const randomTopic = cryptoTopics[Math.floor(Math.random() * cryptoTopics.length)];
       
-      // Step 1: Generate text content
+      // Generate text content
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: "You are a Base blockchain expert. Write engaging crypto posts under 220 characters (leave room for tags). Use 1-2 emojis. Technical but clear. No hashtags."
+            content: "You are a Base blockchain expert. Write engaging crypto posts under 220 characters. Use 1-2 emojis. Technical but clear. No hashtags."
           },
           {
             role: "user",
@@ -69,11 +65,11 @@ export default async function handler(req, res) {
       
       const textContent = completion.choices[0].message.content.trim();
       
-      // Step 2: Generate image with DALL-E
+      // Generate image with DALL-E
       console.log("Generating image...");
       const imageResponse = await openai.images.generate({
         model: "dall-e-3",
-        prompt: `Create a modern, professional cryptocurrency/blockchain themed image about: ${randomTopic}. Style: Clean, futuristic, blue color scheme matching Base brand (blue #0052FF), include subtle blockchain network patterns, no text on image.`,
+        prompt: `Create a modern, professional cryptocurrency/blockchain themed image about: ${randomTopic}. Style: Clean, futuristic, blue color scheme (#0052FF), blockchain network patterns, minimalist, no text.`,
         size: "1024x1024",
         quality: "standard",
         n: 1,
@@ -82,42 +78,12 @@ export default async function handler(req, res) {
       const imageUrl = imageResponse.data[0].url;
       console.log("Image generated:", imageUrl);
       
-      // Step 3: Download image as base64
-      const imageDataResponse = await fetch(imageUrl);
-      const imageBuffer = await imageDataResponse.arrayBuffer();
-      const imageBase64 = Buffer.from(imageBuffer).toString('base64');
-      
-      // Step 4: Upload image to Neynar
-      console.log("Uploading image to Neynar...");
-      const uploadResponse = await fetch('https://api.neynar.com/v2/farcaster/storage/upload', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'api_key': process.env.NEYNAR_API_KEY,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          content: imageBase64,
-          content_type: "image/png"
-        })
-      });
-      
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error("Image upload error:", errorText);
-        throw new Error(`Image upload failed: ${uploadResponse.status}`);
-      }
-      
-      const uploadResult = await uploadResponse.json();
-      const imageStorageUrl = uploadResult.url;
-      console.log("Image uploaded:", imageStorageUrl);
-      
-      // Step 5: Add tags to content
+      // Add tags
       const tags = getRandomInfluencers(2);
       const finalContent = `${textContent}\n\n${tags.join(' ')}`;
       
-      // Step 6: Post to Farcaster with image
-      console.log("Publishing cast with image...");
+      // Post to Farcaster with image URL
+      console.log("Publishing cast...");
       const castResponse = await fetch('https://api.neynar.com/v2/farcaster/cast', {
         method: 'POST',
         headers: {
@@ -128,7 +94,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           signer_uuid: process.env.SIGNER_UUID,
           text: finalContent,
-          embeds: [{ url: imageStorageUrl }]
+          embeds: [{ url: imageUrl }]
         })
       });
       
@@ -141,9 +107,9 @@ export default async function handler(req, res) {
       
       return res.status(200).json({ 
         success: true, 
-        message: "Post with image published successfully!",
+        message: "Post with image published!",
         content: finalContent,
-        imageUrl: imageStorageUrl,
+        imageUrl: imageUrl,
         tags: tags,
         castHash: castResult.cast?.hash,
         castUrl: `https://warpcast.com/${castResult.cast?.author?.username}/${castResult.cast?.hash}`
@@ -153,8 +119,7 @@ export default async function handler(req, res) {
       console.error("ERROR:", error);
       return res.status(500).json({ 
         success: false, 
-        error: error.message,
-        details: error.toString()
+        error: error.message
       });
     }
   }
