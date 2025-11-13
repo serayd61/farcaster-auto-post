@@ -46,7 +46,6 @@ export default async function handler(req, res) {
       
       const randomTopic = cryptoTopics[Math.floor(Math.random() * cryptoTopics.length)];
       
-      // Generate text content
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -65,25 +64,9 @@ export default async function handler(req, res) {
       
       const textContent = completion.choices[0].message.content.trim();
       
-      // Generate image with DALL-E
-      console.log("Generating image...");
-      const imageResponse = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: `Create a modern, professional cryptocurrency/blockchain themed image about: ${randomTopic}. Style: Clean, futuristic, blue color scheme (#0052FF), blockchain network patterns, minimalist, no text.`,
-        size: "1024x1024",
-        quality: "standard",
-        n: 1,
-      });
-      
-      const imageUrl = imageResponse.data[0].url;
-      console.log("Image generated:", imageUrl);
-      
-      // Add tags
       const tags = getRandomInfluencers(2);
       const finalContent = `${textContent}\n\n${tags.join(' ')}`;
       
-      // Post to Farcaster with image URL
-      console.log("Publishing cast...");
       const castResponse = await fetch('https://api.neynar.com/v2/farcaster/cast', {
         method: 'POST',
         headers: {
@@ -93,8 +76,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           signer_uuid: process.env.SIGNER_UUID,
-          text: finalContent,
-          embeds: [{ url: imageUrl }]
+          text: finalContent
         })
       });
       
@@ -107,9 +89,8 @@ export default async function handler(req, res) {
       
       return res.status(200).json({ 
         success: true, 
-        message: "Post with image published!",
+        message: "Post published with tags!",
         content: finalContent,
-        imageUrl: imageUrl,
         tags: tags,
         castHash: castResult.cast?.hash,
         castUrl: `https://warpcast.com/${castResult.cast?.author?.username}/${castResult.cast?.hash}`
