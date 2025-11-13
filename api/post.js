@@ -11,99 +11,72 @@ const cryptoTopics = [
   "Base ekosistemindeki yeni projeler ve dApp'ler",
   "Cross-chain bridge'ler ve Base ağı",
   "Base'de transaction hızı ve güvenlik",
-  "Developer'lar için Base blockchain avantajları",
-  "Base üzerinde DeFi yield farming fırsatları",
-  "Optimism teknolojisi ve Base'in altyapısı",
-  "Base blockchain'de gas fee optimizasyonu",
-  "Coinbase Wallet ve Base kullanıcı deneyimi",
-  "Base ekosisteminde liquidity mining",
-  "Layer 2 scaling'in geleceği ve Base",
-  "Base'de token launch stratejileri",
-  "Base blockchain developer topluluğu",
-  "Base üzerinde lending protokolleri",
-  "Base'in Ethereum mainnet ile ilişkisi"
+  "Developer'lar için Base blockchain avantajları"
 ];
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
   
   if (req.headers['user-agent']?.includes('vercel-cron') || req.query.manual === 'true') {
     try {
-      console.log("Starting post process...");
+      console.log("=== Starting post process ===");
       
-      // OpenAI ile içerik üret
+      // OpenAI client
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY
       });
       
       const randomTopic = cryptoTopics[Math.floor(Math.random() * cryptoTopics.length)];
-      console.log("Selected topic:", randomTopic);
+      console.log("Topic:", randomTopic);
       
+      // İçerik üret
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: `Sen Base blockchain ve kripto konusunda uzman bir içerik üreticisisin. 
-            
-Görevin:
-- İlgi çekici, bilgilendirici ve viral olabilecek kısa postlar yazmak
-- 280 karakter veya daha az (Farcaster limiti)
-- 1-2 emoji kullan ama abartma
-- Teknik ama anlaşılır bir dil kullan
-- Türkçe ve İngilizce kelimeler karışık kullanabilirsin (kripto terminoloji için)
-- Hashtag kullanma, doğal yaz
-- Her seferinde farklı bir açıdan yaklaş
-
-Ton: Profesyonel ama samimi, heyecanlı ama abartısız`
+            content: "Sen Base blockchain uzmanısın. 280 karakter altında, ilgi çekici, Türkçe-İngilizce karışık kripto postları yazıyorsun. 1-2 emoji kullan."
           },
           {
             role: "user",
-            content: `Bu konu hakkında ilgi çekici bir post yaz: ${randomTopic}`
+            content: `Bu konu hakkında kısa bir post yaz: ${randomTopic}`
           }
         ],
-        max_tokens: 150,
+        max_tokens: 100,
         temperature: 0.9
       });
       
       const generatedContent = completion.choices[0].message.content.trim();
-      console.log("Generated content:", generatedContent);
+      console.log("Content generated:", generatedContent);
       
-      // Neynar client oluştur
-      const neynar = new NeynarAPIClient({
-        apiKey: process.env.NEYNAR_API_KEY
-      });
+      // Neynar client - DÜZELTİLMİŞ VERSİYON
+      const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY);
       
-      console.log("Publishing cast...");
+      console.log("Publishing to Farcaster...");
       
-      // Cast yayınla
-      const cast = await neynar.publishCast({
-        signerUuid: process.env.SIGNER_UUID,
-        text: generatedContent
-      });
+      // Cast yayınla - DÜZELTİLMİŞ PARAMETRE YAPISI
+      const result = await neynar.publishCast(
+        process.env.SIGNER_UUID,
+        generatedContent
+      );
       
-      console.log("Cast published successfully:", cast.hash);
+      console.log("Success! Cast hash:", result.hash);
       
       return res.status(200).json({ 
         success: true, 
         message: "Post başarıyla gönderildi!",
-        topic: randomTopic,
         content: generatedContent,
-        castHash: cast.hash,
-        castUrl: `https://warpcast.com/~/conversations/${cast.hash}`
+        castHash: result.hash,
+        castUrl: `https://warpcast.com/~/conversations/${result.hash}`
       });
       
     } catch (error) {
-      console.error("Hata detayı:", error);
+      console.error("ERROR:", error);
+      console.error("Error details:", JSON.stringify(error, null, 2));
+      
       return res.status(500).json({ 
         success: false, 
-        error: error.message,
+        error: error.message || "Unknown error",
         details: error.toString()
       });
     }
