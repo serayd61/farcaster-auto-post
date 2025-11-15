@@ -44,18 +44,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 50  # Son 50 commit'i al
+          fetch-depth: 50
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          npm init -y
-          npm install @standard-crypto/farcaster-js
 
       - name: Generate AI Content
         id: ai_content
@@ -67,17 +61,6 @@ jobs:
           AI_TEMPERATURE: ${{ vars.AI_TEMPERATURE || '0.7' }}
           CUSTOM_MESSAGE: ${{ inputs.custom_message }}
           POST_TYPE: ${{ inputs.post_type }}
-          # Özel prompt'lar (Repository Variables olarak ayarlanabilir)
-          PR_OPENED_SYSTEM_PROMPT: ${{ vars.PR_OPENED_SYSTEM_PROMPT }}
-          PR_OPENED_USER_PROMPT: ${{ vars.PR_OPENED_USER_PROMPT }}
-          PR_MERGED_SYSTEM_PROMPT: ${{ vars.PR_MERGED_SYSTEM_PROMPT }}
-          PR_MERGED_USER_PROMPT: ${{ vars.PR_MERGED_USER_PROMPT }}
-          RELEASE_SYSTEM_PROMPT: ${{ vars.RELEASE_SYSTEM_PROMPT }}
-          RELEASE_USER_PROMPT: ${{ vars.RELEASE_USER_PROMPT }}
-          ISSUE_SYSTEM_PROMPT: ${{ vars.ISSUE_SYSTEM_PROMPT }}
-          ISSUE_USER_PROMPT: ${{ vars.ISSUE_USER_PROMPT }}
-          WEEKLY_SYSTEM_PROMPT: ${{ vars.WEEKLY_SYSTEM_PROMPT }}
-          WEEKLY_USER_PROMPT: ${{ vars.WEEKLY_USER_PROMPT }}
         run: |
           cat > generate_content.js << 'EOFJS'
           const https = require('https');
@@ -160,75 +143,72 @@ jobs:
               // PR açıldı
               else if (event_name === 'pull_request' && event.action === 'opened') {
                 const pr = event.pull_request;
-                const systemPrompt = process.env.PR_OPENED_SYSTEM_PROMPT || 
-                  "Sen bir sosyal medya uzmanısın. GitHub PR'larını ilgi çekici mesajlara dönüştürüyorsun.";
-                
-                const userPrompt = process.env.PR_OPENED_USER_PROMPT || 
-                  `Yeni PR: "${pr.title}"\nAçıklama: "${pr.body || 'Yok'}"\nYazar: @${pr.user.login}\n\nFarcaster için kısa (280 karakter), ilgi çekici mesaj yaz.`;
-
                 content = await this.callOpenAI([
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: userPrompt }
+                  { 
+                    role: "system", 
+                    content: "Sen bir sosyal medya uzmanısın. GitHub PR'larını ilgi çekici mesajlara dönüştürüyorsun." 
+                  },
+                  { 
+                    role: "user", 
+                    content: `Yeni PR: "${pr.title}"\nAçıklama: "${pr.body || 'Yok'}"\nYazar: @${pr.user.login}\n\nFarcaster için kısa (280 karakter), ilgi çekici, İngilizce mesaj yaz.`
+                  }
                 ]);
               }
               // PR merge edildi
               else if (event_name === 'pull_request' && event.action === 'closed' && event.pull_request.merged) {
                 const pr = event.pull_request;
-                const systemPrompt = process.env.PR_MERGED_SYSTEM_PROMPT || 
-                  "Sen coşkulu bir sosyal medya yöneticisisin.";
-                
-                const userPrompt = process.env.PR_MERGED_USER_PROMPT || 
-                  `PR merge edildi! "${pr.title}" by @${pr.user.login}\n+${pr.additions} -${pr.deletions}\n\nKutlama mesajı yaz (280 karakter).`;
-
                 content = await this.callOpenAI([
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: userPrompt }
+                  { 
+                    role: "system", 
+                    content: "Sen coşkulu bir sosyal medya yöneticisisin." 
+                  },
+                  { 
+                    role: "user", 
+                    content: `PR merge edildi! "${pr.title}" by @${pr.user.login}\n+${pr.additions} -${pr.deletions}\n\nKutlama mesajı yaz (280 karakter, İngilizce).`
+                  }
                 ]);
               }
               // Release
               else if (event_name === 'release') {
                 const release = event.release;
-                const systemPrompt = process.env.RELEASE_SYSTEM_PROMPT || 
-                  "Sen bir ürün pazarlamacısısın.";
-                
-                const userPrompt = process.env.RELEASE_USER_PROMPT || 
-                  `Yeni release: ${release.tag_name}\n"${release.body || 'Yok'}"\n\nHeyecan verici duyuru (280 karakter).`;
-
                 content = await this.callOpenAI([
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: userPrompt }
+                  { 
+                    role: "system", 
+                    content: "Sen bir ürün pazarlamacısısın." 
+                  },
+                  { 
+                    role: "user", 
+                    content: `Yeni release: ${release.tag_name}\n"${release.body || 'Yok'}"\n\nHeyecan verici duyuru (280 karakter, İngilizce).`
+                  }
                 ]);
               }
               // Issue açıldı
               else if (event_name === 'issues' && event.action === 'opened') {
                 const issue = event.issue;
-                
-                // Eğer "announcement" label'ı varsa paylaş
                 const hasAnnouncement = issue.labels.some(l => 
                   ['announcement', 'duyuru', 'public'].includes(l.name.toLowerCase())
                 );
                 
                 if (hasAnnouncement) {
-                  const systemPrompt = process.env.ISSUE_SYSTEM_PROMPT || 
-                    "Sen topluluk yöneticisisin.";
-                  
-                  const userPrompt = process.env.ISSUE_USER_PROMPT || 
-                    `Issue: "${issue.title}"\n"${issue.body || 'Yok'}"\n\nTopluluk için mesaj (280 karakter).`;
-
                   content = await this.callOpenAI([
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt }
+                    { 
+                      role: "system", 
+                      content: "Sen topluluk yöneticisisin." 
+                    },
+                    { 
+                      role: "user", 
+                      content: `Issue: "${issue.title}"\n"${issue.body || 'Yok'}"\n\nTopluluk için mesaj (280 karakter, İngilizce).`
+                    }
                   ]);
                 }
               }
               // Push to main
               else if (event_name === 'push' && ['main', 'master'].includes(event.ref.split('/').pop())) {
-                // Sadece önemli commit'leri paylaş
                 const commits = event.commits || [];
                 const importantCommits = commits.filter(c => 
                   !c.message.toLowerCase().includes('merge') &&
                   !c.message.toLowerCase().startsWith('update') &&
-                  commits.indexOf(c) === commits.length - 1 // Son commit
+                  commits.indexOf(c) === commits.length - 1
                 );
 
                 if (importantCommits.length > 0) {
@@ -240,7 +220,7 @@ jobs:
                     },
                     {
                       role: "user",
-                      content: `Git commit mesajı: "${commit.message}"\n\nBu değişikliği Farcaster'da duyurmak için kısa mesaj (280 karakter).`
+                      content: `Git commit mesajı: "${commit.message}"\n\nBu değişikliği Farcaster'da duyurmak için kısa mesaj (280 karakter, İngilizce).`
                     }
                   ]);
                 }
@@ -257,15 +237,15 @@ jobs:
                   commits = 'Commit bilgisi alınamadı';
                 }
 
-                const systemPrompt = process.env.WEEKLY_SYSTEM_PROMPT || 
-                  "Sen bir topluluk liderisin.";
-                
-                const userPrompt = process.env.WEEKLY_USER_PROMPT || 
-                  `Bu hafta:\n${commits}\n\nHaftalık özet (280 karakter, pozitif).`;
-
                 content = await this.callOpenAI([
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: userPrompt }
+                  { 
+                    role: "system", 
+                    content: "Sen bir topluluk liderisin." 
+                  },
+                  { 
+                    role: "user", 
+                    content: `Bu hafta:\n${commits}\n\nHaftalık özet (280 karakter, pozitif, İngilizce).`
+                  }
                 ]);
               }
 
@@ -297,14 +277,34 @@ jobs:
 
           node generate_content.js
 
-      - name: Post to Farcaster
+      - name: Post to Farcaster (Neynar)
         if: steps.ai_content.outputs.success == 'true'
         env:
-          FARCASTER_FID: ${{ secrets.FARCASTER_FID }}
-          FARCASTER_MNEMONIC: ${{ secrets.FARCASTER_MNEMONIC }}
+          NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
+          SIGNER_UUID: ${{ secrets.SIGNER_UUID }}
           AI_CONTENT: ${{ steps.ai_content.outputs.content }}
         run: |
-          npx @standard-crypto/farcaster-js cast "$AI_CONTENT"
+          response=$(curl -s -w "\n%{http_code}" -X POST 'https://api.neynar.com/v2/farcaster/cast' \
+            -H 'accept: application/json' \
+            -H "api_key: $NEYNAR_API_KEY" \
+            -H 'content-type: application/json' \
+            -d "{
+              \"signer_uuid\": \"$SIGNER_UUID\",
+              \"text\": \"$AI_CONTENT\"
+            }")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ $http_code -eq 200 ]; then
+            echo "✅ Farcaster'a başarıyla gönderildi!"
+          else
+            echo "❌ Hata oluştu!"
+            exit 1
+          fi
 
       - name: Create Summary
         if: always()
@@ -331,4 +331,4 @@ jobs:
       - name: Notify on Failure
         if: failure()
         run: |
-          echo "::error::Failed to generate or post content. Check OpenAI API key and Farcaster credentials."
+          echo "::error::Failed to generate or post content. Check OpenAI API key and Neynar credentials."
