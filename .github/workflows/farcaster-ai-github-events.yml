@@ -1,0 +1,67 @@
+name: Farcaster GitHub Events
+
+on:
+  pull_request:
+    types: [opened, closed]
+  release:
+    types: [published]
+  issues:
+    types: [opened, labeled]
+  workflow_dispatch:
+    inputs:
+      custom_message:
+        description: 'Custom message to post'
+        required: true
+        type: string
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Prepare Message
+        id: message
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ] && [ "${{ github.event.action }}" == "opened" ]; then
+            MSG="🔧 New PR opened: ${{ github.event.pull_request.title }} by @${{ github.event.pull_request.user.login }}"
+          elif [ "${{ github.event_name }}" == "pull_request" ] && [ "${{ github.event.action }}" == "closed" ] && [ "${{ github.event.pull_request.merged }}" == "true" ]; then
+            MSG="✅ PR merged: ${{ github.event.pull_request.title }} - Great work @${{ github.event.pull_request.user.login }}! 🎉"
+          elif [ "${{ github.event_name }}" == "release" ]; then
+            MSG="🚀 New release: ${{ github.event.release.tag_name }} is now live! Check it out!"
+          elif [ "${{ github.event_name }}" == "issues" ]; then
+            MSG="💡 New issue: ${{ github.event.issue.title }} - Community feedback welcome!"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            MSG="${{ inputs.custom_message }}"
+          else
+            MSG="📢 GitHub activity update"
+          fi
+          
+          echo "message=$MSG" >> $GITHUB_OUTPUT
+
+      - name: Post to Farcaster
+        env:
+          NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
+          SIGNER_UUID: ${{ secrets.SIGNER_UUID }}
+          MESSAGE: ${{ steps.message.outputs.message }}
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST 'https://api.neynar.com/v2/farcaster/cast' \
+            -H 'accept: application/json' \
+            -H "api_key: $NEYNAR_API_KEY" \
+            -H 'content-type: application/json' \
+            -d "{
+              \"signer_uuid\": \"$SIGNER_UUID\",
+              \"text\": \"$MESSAGE\"
+            }")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ $http_code -eq 200 ] || [ $http_code -eq 201 ]; then
+            echo "✅ Posted to Farcaster!"
+          else
+            echo "❌ Error posting"
+            exit 1
+          fi
