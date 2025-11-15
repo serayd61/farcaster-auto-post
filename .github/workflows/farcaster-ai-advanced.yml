@@ -62,7 +62,7 @@ jobs:
           CUSTOM_MESSAGE: ${{ inputs.custom_message }}
           POST_TYPE: ${{ inputs.post_type }}
         run: |
-          cat > generate_content.js << 'EOFJS'
+          cat > generate_content.cjs << 'EOFJS'
           const https = require('https');
           const { execSync } = require('child_process');
           const fs = require('fs');
@@ -275,7 +275,7 @@ jobs:
             });
           EOFJS
 
-          node generate_content.js
+          node generate_content.cjs
 
       - name: Post to Farcaster (Neynar)
         if: steps.ai_content.outputs.success == 'true'
